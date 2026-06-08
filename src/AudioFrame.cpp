@@ -65,4 +65,32 @@ double AudioFrame::getDuration() const
 	return duration;
 }
 
+// Manipulation Functions ----------------------------------------------
+void AudioFrame::normalize()
+{
+	double max = 0;
+	for(double point : data)
+	{
+		double pointValue = std::abs(point);
+		if(pointValue > max)
+			max = pointValue;
+	}
 
+	for(int i = 0; i < data.size(); ++i)
+		data[i] = data[i] / max;
+}
+
+// Operator Overloads ---------------------------------------------------
+AudioFrame& AudioFrame::operator=(const AudioFrame& copy)
+{
+	if (this == &copy)
+		return *this;
+
+	data = copy.data;
+	dataSize = copy.dataSize;
+	samplingRate = copy.samplingRate;
+	numChannels = copy.numChannels;
+	duration = copy.duration;
+
+	return *this;
+}
