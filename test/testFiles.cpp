@@ -56,7 +56,8 @@ std::vector<double> softClip(std::vector<double> input, double gain)
 
 static std::vector<double> distort(std::vector<double> input, double distortFactor)
 {
-	return input;
+
+	return softClip(hardClip(input, 1), 1);
 }
 
 int main(int argc, char** argv)
@@ -66,6 +67,7 @@ int main(int argc, char** argv)
 	auto yData = createSinHelper(freq, numSamples);
 	auto hardClipped = hardClip(yData, 2, 1.5);
 	auto softClipped = softClip(yData, 2);
+	auto distorted = distort(yData, 2);
 
-	display(softClipped, numSamples, 50, "hardClipped");
+	display(distorted, numSamples, 50, "hardClipped");
 }
