@@ -1,20 +1,17 @@
-/* effects.h
- * Header File for a bunch of guitar pedal effects!
+/* AudioFrame.h
+ * Header File for Audio Frame ADT!
  *
- * TODO:
- * - Distortion Effects:
- *		- Hard Clip 
- *		- Soft Clip
- *		- Fuzz
- * - Delay
- * - Boost
- * - Tremolo
+ * Contains the function skeletons for a class for a frame of audio data
+ * Each audio buffer will be BUFFER_SIZE long and will be dynamically allocated (only being allocated once)
+ *
  * */
 
+#pragma once
 #include <cstddef>
 #include <vector>
-#include <functional>
 #include <cinttypes>
+
+#define BUFFER_SIZE 128
 class AudioFrame
 {
 	public:
@@ -34,8 +31,11 @@ class AudioFrame
 		size_t getNumChannels()		const;
 		double getDuration()		const;
 
+		std::vector<double>& getDataMutable();
+		const std::vector<double>& getData() const;
+
 		// Manipulation Functions:
-		void normalize();
+		double normalize(); // Returns the max amplitude so that we can later reboost up to original
 
 		// Output Function to I2S:
 		std::vector<int16_t> toInt16Buffer() const;
@@ -45,9 +45,12 @@ class AudioFrame
 		AudioFrame& operator=(const AudioFrame& copy);
 	
 	private:
+
+		// Data Fields:
 		std::vector<double> data;
-		size_t				dataSize;
+		size_t				dataSize = BUFFER_SIZE;
 		size_t				samplingRate;
 		size_t				numChannels;
 		double				duration;
 };
+
