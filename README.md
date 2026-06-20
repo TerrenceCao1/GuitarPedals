@@ -8,7 +8,7 @@ A modular digital guitar pedal platform built on the STM32F103C8T6 microcontroll
 
 | Effect | Status |
 |---|---|
-| Bypass (clean passthrough) | Planned |
+| Bypass (clean passthrough) | Software Tested |
 | Boost | Planned |
 | Overdrive / Distortion | Planned |
 | Delay | Planned |
