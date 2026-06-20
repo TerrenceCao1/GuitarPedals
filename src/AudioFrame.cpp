@@ -1,6 +1,6 @@
 /*
- * effects.cpp
- * Source file for effects.h
+ * AudioFrame.cpp
+ * Source file for AudioFrame.h
  *
  * */
 #include <iostream>
@@ -41,7 +41,6 @@ AudioFrame::AudioFrame(const AudioFrame& copy)
 // AudioFrame Destructor ----------------------------------------------
 AudioFrame::~AudioFrame()
 {
-	data.clear();
 }
 
 // Access Functions ---------------------------------------------------
@@ -65,8 +64,18 @@ double AudioFrame::getDuration() const
 	return duration;
 }
 
+std::vector<double>& AudioFrame::getDataMutable()
+{
+	return data;
+}
+
+const std::vector<double>& AudioFrame::getData() const
+{
+	return data;
+}
+
 // Manipulation Functions ----------------------------------------------
-void AudioFrame::normalize()
+double AudioFrame::normalize()
 {
 	double max = 0;
 	for(double point : data)
@@ -78,6 +87,8 @@ void AudioFrame::normalize()
 
 	for(int i = 0; i < data.size(); ++i)
 		data[i] = data[i] / max;
+
+	return max;
 }
 
 // Operator Overloads ---------------------------------------------------
