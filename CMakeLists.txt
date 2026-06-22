@@ -21,4 +21,11 @@ add_executable(test_bypass
 	test/BypassTest.cpp
 )
 
+add_executable(test_boost
+	src/AudioFrame.cpp
+	src/Effects.cpp
+	test/BoostTest.cpp
+)
+
 add_test(NAME BypassTest COMMAND test_bypass)
+add_test(NAME BoostTest COMMAND test_boost)
