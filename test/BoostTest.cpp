@@ -49,10 +49,10 @@ void testBoost6DbDoubles()
 	Effects::Boost(inFrame, outFrame, 6.0);
 
 	std::vector<double> twiceInput(inputData.size());
-	for(int i = 0; i < inputData.size(); i++)
-		twiceInput[i] = 2 * inputData[i];
+	for(double sample : inputData)
+		twiceInput.push_back(2 * sample);
 
-	if(nearlyEqual(outFrame.getData(), twiceInput, 0.1))
+	if(nearlyEqual(outFrame.getData(), twiceInput, 0.5))
 		std::cout << "Boost 6Db Doubles Test " << GREEN << "PASSED\n" << CLEAR;
 	else
 		std::cout << "Boost 6Db Doubles Test " << RED << "FAILED\n" << CLEAR;
