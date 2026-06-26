@@ -9,9 +9,11 @@
 #pragma once
 #include <cstddef>
 #include <vector>
+#include <array>
 #include <cinttypes>
 
-#define BUFFER_SIZE 128
+constexpr size_t MAX_FRAME_SAMPLES = 64;
+
 class AudioFrame
 {
 	public:
@@ -19,7 +21,6 @@ class AudioFrame
 		AudioFrame();
 		AudioFrame(const AudioFrame& copy);												// Copy Constructor
 		AudioFrame(size_t samplingRate, size_t numSamples);								// Empty Constructor
-		AudioFrame(std::vector<double> data, size_t samplingRate);						// From Existing Buffer
 		AudioFrame(const double* rawBuffer, size_t numSamples, size_t samplingRate);	// From raw DMA buffer
 
 		// Destructor
@@ -31,8 +32,8 @@ class AudioFrame
 		size_t getNumChannels()		const;
 		double getDuration()		const;
 
-		std::vector<double>& getDataMutable();
-		const std::vector<double>& getData() const;
+		std::array<double, MAX_FRAME_SAMPLES>& getDataMutable();
+		const std::array<double, MAX_FRAME_SAMPLES>& getData() const;
 
 		// Manipulation Functions:
 		double normalize(); // Returns the max amplitude so that we can later reboost up to original
@@ -45,10 +46,8 @@ class AudioFrame
 		AudioFrame& operator=(const AudioFrame& copy);
 	
 	private:
-
-		// Data Fields:
-		std::vector<double> data;
-		size_t				dataSize = BUFFER_SIZE;
+		std::array<double, MAX_FRAME_SAMPLES> data;
+		size_t				dataSize;
 		size_t				samplingRate;
 		size_t				numChannels;
 		double				duration;
