@@ -1,13 +1,13 @@
 // mainPedal.cpp
-#include "Legacy/stm32_hal_legacy.h"
-#include "stm32f411xe.h"
-#include "stm32f4xx_hal_cortex.h"
-#include "stm32f4xx_hal_def.h"
 extern "C" {
     #include "stm32f4xx_hal.h"
 	#include "stm32f4xx_hal_gpio.h"
 	#include "stm32f4xx_hal_i2s.h"
 	#include "stm32f4xx_hal_dma.h"
+	#include "Legacy/stm32_hal_legacy.h"
+	#include "stm32f411xe.h"
+	#include "stm32f4xx_hal_cortex.h"
+	#include "stm32f4xx_hal_def.h"
 }
 
 #include <iostream>
@@ -78,9 +78,9 @@ static void I2S_DMA_Init(void)
 	hdma_i2s2ext_tx.Init.MemInc					= DMA_MINC_ENABLE;
 	hdma_i2s2ext_tx.Init.PeriphDataAlignment	= DMA_PDATAALIGN_HALFWORD;
 	hdma_i2s2ext_tx.Init.MemDataAlignment		= DMA_MDATAALIGN_HALFWORD;
-	hdma_i2s2_rx.Init.Mode					= DMA_CIRCULAR;
-	hdma_i2s2_rx.Init.Priority				= DMA_PRIORITY_HIGH;
-	hdma_i2s2_rx.Init.FIFOMode				= DMA_FIFOMODE_DISABLE;
+	hdma_i2s2_rx.Init.Mode						= DMA_CIRCULAR;
+	hdma_i2s2_rx.Init.Priority					= DMA_PRIORITY_HIGH;
+	hdma_i2s2_rx.Init.FIFOMode					= DMA_FIFOMODE_DISABLE;
 
 	if(HAL_DMA_Init(&hdma_i2s2ext_tx) != HAL_OK) Error_Handler();
 	__HAL_LINKDMA(&hi2s2, hdmatx, hdma_i2s2ext_tx);
@@ -108,6 +108,23 @@ static void I2S_Init(void)
 	if(HAL_I2S_Init(&hi2s2) != HAL_OK) Error_Handler();
 }
 
+// ISR when first half of rxBuffer is ready
+// Process rxBuffer[0, ..., AUDIO_BLOCK_SIZE]
+void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef* hi2s)
+{
+
+}
+
+// ISR when second half of rxBuffer is ready
+// Process rxBuffer[AUDIO_BLOCK_SIZE, ..., AUDIO_BUFFER_LEN]
+void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef* hi2s)
+{
+
+}
+
+extern "C" void DMA1_Stream3_IRQHandler(void) { HAL_DMA_IRQHandler(&hdma_i2s2_rx);}
+extern "C" void DMA1_Stream4_IRQHandler(void) { HAL_DMA_IRQHandler(&hdma_i2s2ext_tx);}
+
 int main(void)
 {
     HAL_Init();
@@ -115,7 +132,10 @@ int main(void)
 	I2S_DMA_Init();
 	I2S_Init();
 
+	HAL_I2S_Transmit_DMA(&hi2s2, (uint16_t*)txBuffer, AUDIO_BUFFER_LEN);
+	HAL_I2S_Transmit_DMA(&hi2s2, (uint16_t*)rxBuffer, AUDIO_BUFFER_LEN);
     while (1)
     {
+
     }
 }
