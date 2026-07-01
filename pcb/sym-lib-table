@@ -1,0 +1,4 @@
+(sym_lib_table
+	(version 7)
+	(lib (name "pcm") (type "KiCad") (uri "/home/tzcao/Documents/5-Temp/kicad-pcm_adc/pcm.kicad_sym") (options "") (descr ""))
+)
