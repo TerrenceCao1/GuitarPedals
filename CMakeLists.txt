@@ -49,6 +49,7 @@ if(CMAKE_CROSSCOMPILING)
         src/AudioFrame.cpp
         src/Effects.cpp
         src/mainPedal.cpp
+		src/stm32f4xx_hal_msp.c
         Drivers/Startup/startup_stm32f411ceux.s
 		Drivers/CMSIS/Device/ST/STM32F4xx/Source/Templates/system_stm32f4xx.c
         ${HAL_SOURCES}
