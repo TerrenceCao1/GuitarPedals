@@ -116,7 +116,9 @@ void HAL_I2S_MspInit(I2S_HandleTypeDef* hi2s)
     PB14     ------> I2S2_ext_SD
     PB15     ------> I2S2_SD
     */
-   hdma_i2s2_ext_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
+	hdma_i2s2_ext_rx.Instance = DMA1_Stream3;
+	hdma_i2s2_ext_rx.Init.Channel = DMA_CHANNEL_3;
+	hdma_i2s2_ext_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
     hdma_i2s2_ext_rx.Init.PeriphInc = DMA_PINC_DISABLE;
     hdma_i2s2_ext_rx.Init.MemInc = DMA_MINC_ENABLE;
     hdma_i2s2_ext_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD;
