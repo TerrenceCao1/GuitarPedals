@@ -1,5 +1,4 @@
 // mainPedal.cpp
-#include "stm32f4xx_hal_rcc.h"
 extern "C" {
     #include "stm32f4xx_hal.h"
 	#include "stm32f4xx_hal_gpio.h"
@@ -9,10 +8,11 @@ extern "C" {
 	#include "stm32f411xe.h"
 	#include "stm32f4xx_hal_cortex.h"
 	#include "stm32f4xx_hal_def.h"
-#include "stm32f4xx_hal_i2s_ex.h"
+	#include "stm32f4xx_hal_i2s_ex.h"
+	#include "stm32f4xx_hal_rcc.h"
+	#include "main.h"
 }
 
-#include <iostream>
 #include "AudioFrame.h"
 #include "Effects.h"
 
@@ -29,159 +29,219 @@ extern "C" {
 #define AUDIO_BLOCK_SIZE	64
 #define AUDIO_BUFFER_LEN	(AUDIO_BLOCK_SIZE * 2) // double buffered for ping pong
 
-// Handling all firmware GPIO's, I2S, DMA stuff:
+/* Private variables ---------------------------------------------------------*/
 I2S_HandleTypeDef hi2s2;
-DMA_HandleTypeDef hdma_i2s2_rx;
-DMA_HandleTypeDef hdma_i2s2ext_tx;
+DMA_HandleTypeDef hdma_i2s2_ext_rx;
+DMA_HandleTypeDef hdma_spi2_tx;
 
-static void Error_Handler(void)
-{
-	while(1) {};
-}
+/* USER CODE BEGIN PV */
 
-static void I2S_GPIO_Init(void)
-{
-	__HAL_RCC_GPIOB_CLK_ENABLE();
+/* USER CODE END PV */
 
-	// For WS/CK/TX using SPI2 alt function
-	GPIO_InitTypeDef gpio = {0};
-	gpio.Pin		= I2S2_CK | I2S2_WS | I2S_DATA_TX;
-	gpio.Mode		= GPIO_MODE_AF_PP;
-	gpio.Pull		= GPIO_NOPULL;
-	gpio.Speed		= GPIO_SPEED_FREQ_HIGH;
-	gpio.Alternate	= GPIO_AF5_SPI2;
-	HAL_GPIO_Init(I2S_GPIO_PORT, &gpio);
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
+static void MX_I2S2_Init(void);
+/* USER CODE BEGIN PFP */
 
-	// For RX using I2Sext 
-	gpio.Pin		= I2S_DATA_RX;
-	gpio.Mode		= GPIO_MODE_AF_PP;
-	gpio.Pull		= GPIO_NOPULL;
-	gpio.Speed		= GPIO_SPEED_FREQ_HIGH;
-	gpio.Alternate	= GPIO_AF6_I2S2ext;
-	HAL_GPIO_Init(I2S_GPIO_PORT, &gpio);
-}
+/* USER CODE END PFP */
 
-static void I2S_DMA_Init(void)
-{
-	__HAL_RCC_DMA1_CLK_ENABLE();
+/* Private user code ---------------------------------------------------------*/
+/* USER CODE BEGIN 0 */
 
-	// RX - from the ADC, DMA1 Stream 3, Channel 0
-	hdma_i2s2_rx.Instance					= DMA1_Stream3;
-	hdma_i2s2_rx.Init.Channel				= DMA_CHANNEL_0;
-	hdma_i2s2_rx.Init.Direction				= DMA_PERIPH_TO_MEMORY;
-	hdma_i2s2_rx.Init.MemInc				= DMA_MINC_ENABLE;
-	hdma_i2s2_rx.Init.PeriphInc				= DMA_PINC_DISABLE;
-	hdma_i2s2_rx.Init.PeriphDataAlignment	= DMA_PDATAALIGN_HALFWORD;
-	hdma_i2s2_rx.Init.MemDataAlignment		= DMA_MDATAALIGN_HALFWORD;
-	hdma_i2s2_rx.Init.Mode					= DMA_CIRCULAR;
-	hdma_i2s2_rx.Init.Priority				= DMA_PRIORITY_HIGH;
-	hdma_i2s2_rx.Init.FIFOMode				= DMA_FIFOMODE_DISABLE;
+/* USER CODE END 0 */
 
-	if(HAL_DMA_Init(&hdma_i2s2_rx) != HAL_OK) Error_Handler();
-	__HAL_LINKDMA(&hi2s2, hdmarx, hdma_i2s2_rx);
-
-
-	// TX - to the DAC, DMA1 Stream 4, Channel 2
-	hdma_i2s2ext_tx.Instance					= DMA1_Stream4;
-	hdma_i2s2ext_tx.Init.Channel				= DMA_CHANNEL_2;
-	hdma_i2s2ext_tx.Init.Direction				= DMA_MEMORY_TO_PERIPH;
-	hdma_i2s2ext_tx.Init.MemInc					= DMA_MINC_ENABLE;
-	hdma_i2s2ext_tx.Init.PeriphInc				= DMA_PINC_DISABLE;
-	hdma_i2s2ext_tx.Init.PeriphDataAlignment	= DMA_PDATAALIGN_HALFWORD;
-	hdma_i2s2ext_tx.Init.MemDataAlignment		= DMA_MDATAALIGN_HALFWORD;
-	hdma_i2s2ext_tx.Init.Mode					= DMA_CIRCULAR;
-	hdma_i2s2ext_tx.Init.Priority				= DMA_PRIORITY_HIGH;
-	hdma_i2s2ext_tx.Init.FIFOMode				= DMA_FIFOMODE_DISABLE;
-
-	if(HAL_DMA_Init(&hdma_i2s2ext_tx) != HAL_OK) Error_Handler();
-	__HAL_LINKDMA(&hi2s2, hdmatx, hdma_i2s2ext_tx);
-
-	// DMA Interrupts
-	HAL_NVIC_SetPriority(DMA1_Stream3_IRQn, 1, 0);
-	HAL_NVIC_EnableIRQ(DMA1_Stream3_IRQn);
-	HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 1, 0);
-	HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
-}
-
-static void I2S_Init(void)
-{
-	__HAL_RCC_SPI2_CLK_ENABLE();
-	hi2s2.Instance				= SPI2;
-	hi2s2.Init.Mode				= I2S_MODE_MASTER_TX;
-	hi2s2.Init.Standard			= I2S_STANDARD_PHILIPS;
-	hi2s2.Init.DataFormat		= I2S_DATAFORMAT_16B;
-	hi2s2.Init.MCLKOutput		= I2S_MCLKOUTPUT_DISABLE;
-	hi2s2.Init.AudioFreq		= I2S_AUDIOFREQ_48K;
-	hi2s2.Init.CPOL				= I2S_CPOL_LOW;
-	hi2s2.Init.ClockSource		= I2S_CLOCK_PLL;
-	hi2s2.Init.FullDuplexMode	= I2S_FULLDUPLEXMODE_ENABLE;
-
-	if(HAL_I2S_Init(&hi2s2) != HAL_OK) Error_Handler();
-}
-
-// For driving the SCK
-static void Setup_MC01_Clock(void)
-{
-	__HAL_RCC_GPIOA_CLK_ENABLE();
-
-	GPIO_InitTypeDef GPIO_InitStruct = {0};
-	GPIO_InitStruct.Pin			= GPIO_PIN_8;
-	GPIO_InitStruct.Mode		= GPIO_MODE_AF_PP;
-	GPIO_InitStruct.Pull		= GPIO_NOPULL;
-	GPIO_InitStruct.Speed		= GPIO_SPEED_FREQ_VERY_HIGH;
-	GPIO_InitStruct.Alternate	= GPIO_AF0_MCO;
-	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-	HAL_RCC_MCOConfig(RCC_MCO1, RCC_MCO1SOURCE_PLLCLK, RCC_MCODIV_4);
-}
-
-// ISR Handling:
-static int16_t rxBuffer[AUDIO_BUFFER_LEN];
-static int16_t txBuffer[AUDIO_BUFFER_LEN];
-
-static void ProcessBlock(int16_t* rxHalf, int16_t* txHalf, size_t blockSize)
-{
-	AudioFrame inFrame(48000, blockSize);
-	auto& inData = inFrame.getDataMutable();
-	for(size_t i = 0; i < blockSize; i++)
-		inData[i] = rxHalf[i] / 32768.0;
-
-	AudioFrame outFrame(48000, blockSize);
-	Effects::Bypass(inFrame, outFrame);
-
-	const auto& outData = outFrame.getData();
-	for(size_t i = 0; i < blockSize; i++)
-		txHalf[i] = static_cast<int16_t>(outData[i] * 32768.0);
-}
-
-// ISR when first half of rxBuffer is ready
-// Process rxBuffer[0, ..., AUDIO_BLOCK_SIZE]
-void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef* hi2s)
-{
-	ProcessBlock(&rxBuffer[0], &txBuffer[0], AUDIO_BLOCK_SIZE);
-}
-
-// ISR when second half of rxBuffer is ready
-// Process rxBuffer[AUDIO_BLOCK_SIZE, ..., AUDIO_BUFFER_LEN]
-void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef* hi2s)
-{
-	ProcessBlock(&rxBuffer[AUDIO_BLOCK_SIZE], &txBuffer[AUDIO_BLOCK_SIZE], AUDIO_BLOCK_SIZE);
-}
-
-extern "C" void DMA1_Stream3_IRQHandler(void) { HAL_DMA_IRQHandler(&hdma_i2s2_rx);}
-extern "C" void DMA1_Stream4_IRQHandler(void) { HAL_DMA_IRQHandler(&hdma_i2s2ext_tx);}
-
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
 int main(void)
 {
-    HAL_Init();
-	I2S_GPIO_Init();
-	I2S_DMA_Init();
-	I2S_Init();
-	Setup_MC01_Clock();
 
-	if(HAL_I2SEx_TransmitReceive(&hi2s2, (uint16_t*)txBuffer, (uint16_t*)rxBuffer, AUDIO_BUFFER_LEN, 10000) != HAL_OK)
-		Error_Handler();
-    while (1)
-    {
-    }
+  /* USER CODE BEGIN 1 */
+
+  /* USER CODE END 1 */
+
+  /* MCU Configuration--------------------------------------------------------*/
+
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
+
+  /* USER CODE BEGIN Init */
+
+  /* USER CODE END Init */
+
+  /* Configure the system clock */
+  SystemClock_Config();
+
+  /* USER CODE BEGIN SysInit */
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_DMA_Init();
+  MX_I2S2_Init();
+  /* USER CODE BEGIN 2 */
+
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+  while (1)
+  {
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+  }
+  /* USER CODE END 3 */
+}
+
+/**
+  * @brief System Clock Configuration
+  * @retval None
+  */
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+  /** Configure the main internal regulator output voltage
+  */
+  __HAL_RCC_PWR_CLK_ENABLE();
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 25;
+  RCC_OscInitStruct.PLL.PLLN = 196;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = 4;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  HAL_RCC_MCOConfig(RCC_MCO1, RCC_MCO1SOURCE_PLLCLK, RCC_MCODIV_4);
+}
+
+/**
+  * @brief I2S2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2S2_Init(void)
+{
+
+  /* USER CODE BEGIN I2S2_Init 0 */
+
+  /* USER CODE END I2S2_Init 0 */
+
+  /* USER CODE BEGIN I2S2_Init 1 */
+
+  /* USER CODE END I2S2_Init 1 */
+  hi2s2.Instance = SPI2;
+  hi2s2.Init.Mode = I2S_MODE_MASTER_TX;
+  hi2s2.Init.Standard = I2S_STANDARD_PHILIPS;
+  hi2s2.Init.DataFormat = I2S_DATAFORMAT_16B;
+  hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_DISABLE;
+  hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_48K;
+  hi2s2.Init.CPOL = I2S_CPOL_LOW;
+  hi2s2.Init.ClockSource = I2S_CLOCK_PLL;
+  hi2s2.Init.FullDuplexMode = I2S_FULLDUPLEXMODE_ENABLE;
+  if (HAL_I2S_Init(&hi2s2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2S2_Init 2 */
+
+  /* USER CODE END I2S2_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Stream3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream3_IRQn);
+  /* DMA1_Stream4_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
+
+}
+
+/**
+  * @brief GPIO Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_GPIO_Init(void)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  /* USER CODE BEGIN MX_GPIO_Init_1 */
+
+  /* USER CODE END MX_GPIO_Init_1 */
+
+  /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOH_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+
+  /*Configure GPIO pin : PA8 */
+  GPIO_InitStruct.Pin = GPIO_PIN_8;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Alternate = GPIO_AF0_MCO;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* USER CODE BEGIN MX_GPIO_Init_2 */
+
+  /* USER CODE END MX_GPIO_Init_2 */
+}
+
+/* USER CODE BEGIN 4 */
+
+/* USER CODE END 4 */
+
+/**
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
+void Error_Handler(void)
+{
+  /* USER CODE BEGIN Error_Handler_Debug */
+  /* User can add his own implementation to report the HAL error return state */
+  __disable_irq();
+  while (1)
+  {
+  }
+  /* USER CODE END Error_Handler_Debug */
 }
