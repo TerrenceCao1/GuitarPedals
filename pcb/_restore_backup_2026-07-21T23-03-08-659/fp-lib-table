@@ -1,0 +1,5 @@
+(fp_lib_table
+	(version 7)
+	(lib (name "MCP6002-E_P") (type "KiCad") (uri "${KIPRJMOD}/footprints/MCP6002-E_P") (options "") (descr ""))
+	(lib (name "GuitarPedal") (type "KiCad") (uri "${KIPRJMOD}/GuitarPedal.pretty") (options "") (descr ""))
+)
