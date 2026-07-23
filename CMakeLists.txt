@@ -49,9 +49,12 @@ if(CMAKE_CROSSCOMPILING)
         src/AudioFrame.cpp
         src/Effects.cpp
         src/mainPedal.cpp
+		src/stm32f4xx_it.c
 		src/stm32f4xx_hal_msp.c
+		src/syscalls.c
+		src/sysmem.c
+		src/system_stm32f4xx.c
         Drivers/Startup/startup_stm32f411ceux.s
-		Drivers/CMSIS/Device/ST/STM32F4xx/Source/Templates/system_stm32f4xx.c
         ${HAL_SOURCES}
     )
 
@@ -59,8 +62,10 @@ if(CMAKE_CROSSCOMPILING)
 		test/stm32Blink.cpp
 		${HAL_SOURCES}
         Drivers/Startup/startup_stm32f411ceux.s
-		Drivers/CMSIS/Device/ST/STM32F4xx/Source/Templates/system_stm32f4xx.c
+		src/system_stm32f4xx.c
 	)
+
+	target_compile_options(BlinkTest PRIVATE -g -Og)
 
 	target_link_options(BlinkTest PRIVATE
 		-mcpu=cortex-m4
@@ -92,6 +97,11 @@ if(CMAKE_CROSSCOMPILING)
 		DEPENDS GuitarPedal
 		COMMENT "Flashing GuitarPedal...")
 
+	add_custom_target(flash_blink
+		COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:BlinkTest> BlinkTest.bin
+		COMMAND st-flash --reset write BlinkTest.bin 0x08000000
+		DEPENDS BlinkTest 
+		COMMENT "Flashing BlinkTest...")
 endif()
 
 # ----- Tests (host compiler, always built — skipped during ARM cross-compile) -----

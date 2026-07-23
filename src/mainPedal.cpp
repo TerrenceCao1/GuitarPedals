@@ -1,6 +1,6 @@
 // mainPedal.cpp
 extern "C" {
-	  #include "stm32f4xx_hal.h"
+	#include "stm32f4xx_hal.h"
 	#include "stm32f4xx_hal_gpio.h"
 	#include "stm32f4xx_hal_i2s.h"
 	#include "stm32f4xx_hal_dma.h"
@@ -16,17 +16,18 @@ extern "C" {
 #include "AudioFrame.h"
 #include "Effects.h"
 
-/**I2S2 GPIO Configuration
-PB10     ------> I2S2_CK
-PB12     ------> I2S2_WS
-PB14     ------> I2S2_ext_SD
-PB15     ------> I2S2_SD
+/**I2S3 GPIO Configuration
+PB3      ------> I2S3_CK
+PA15     ------> I2S3_WS
+PB10     ------> I2S3_MCK
+PB4      ------> I2S3_ext_SD (Data In, from ADC)
+PB5      ------> I2S3_SD     (Data Out, to DAC)
 */
 
 /* Private variables ---------------------------------------------------------*/
-I2S_HandleTypeDef hi2s2;
-DMA_HandleTypeDef hdma_i2s2_ext_rx;
-DMA_HandleTypeDef hdma_spi2_tx;
+I2S_HandleTypeDef hi2s3;
+DMA_HandleTypeDef hdma_i2s3_ext_rx;
+DMA_HandleTypeDef hdma_spi3_tx;
 
 /* USER CODE BEGIN PV */
 
@@ -36,7 +37,7 @@ DMA_HandleTypeDef hdma_spi2_tx;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
-static void MX_I2S2_Init(void);
+static void MX_I2S3_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -51,21 +52,9 @@ static int16_t txBuffer[AUDIO_BUFFER_LEN];
 
 static void ProcessBlock(int16_t* rxHalf, int16_t* txHalf, size_t blockSize = AUDIO_BLOCK_SIZE)
 {
-	AudioFrame inFrame(48000, blockSize);
-	auto& inData = inFrame.getDataMutable();
-	for(size_t i = 0; i < blockSize; i++)
-	{
-		inData[i] = rxHalf[i] / 32768.0f;
-	}
-
-	AudioFrame outFrame(48000, blockSize);
-	Effects::Boost(inFrame, outFrame, 2.0f);
-
-	const auto& outData = outFrame.getData();
-	for(size_t i = 0; i < blockSize; i++)
-	{
-		txHalf[i] = static_cast<int16_t>(outData[i] * 32768.0f);
-	}
+    // Simple bypass - just copy input to output
+    for(size_t i = 0; i < blockSize; i++)
+        txHalf[i] = rxHalf[i];
 }
 
 void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef* hi2s)
@@ -78,8 +67,22 @@ void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef* hi2s)
 	ProcessBlock(&rxBuffer[AUDIO_BLOCK_SIZE], &txBuffer[AUDIO_BLOCK_SIZE], AUDIO_BLOCK_SIZE);
 }
 
-extern "C" void DMA1_Stream3_IRQHandler(void) { HAL_DMA_IRQHandler(&hdma_i2s2_ext_rx); }
-extern "C" void DMA1_Stream4_IRQHandler(void) { HAL_DMA_IRQHandler(&hdma_spi2_tx); }
+static void BlinkN(int n)
+{
+    __HAL_RCC_GPIOC_CLK_ENABLE();
+    GPIOC->MODER &= ~(3 << 26);
+    GPIOC->MODER |= (1 << 26);
+    for(int i = 0; i < n; i++)
+    {
+        GPIOC->BSRR = (1 << 29);  // ON
+        for(volatile int d = 0; d < 2000000; d++);
+        GPIOC->BSRR = (1 << 13);  // OFF
+        for(volatile int d = 0; d < 2000000; d++);
+    }
+    // pause between groups
+    for(volatile int d = 0; d < 5000000; d++);
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -97,25 +100,25 @@ int main(void)
 
 	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
 	HAL_Init();
-
 	/* USER CODE BEGIN Init */
 
 	/* USER CODE END Init */
 
 	/* Configure the system clock */
+	MX_GPIO_Init();
 	SystemClock_Config();
-
-	/* USER CODE BEGIN SysInit */
-
 	/* USER CODE END SysInit */
 
 	/* Initialize all configured peripherals */
-	MX_GPIO_Init();
 	MX_DMA_Init();
-	MX_I2S2_Init();
+	MX_I2S3_Init();
+
 	/* USER CODE BEGIN 2 */
-	if(HAL_I2SEx_TransmitReceive_DMA(&hi2s2, (uint16_t*)txBuffer, (uint16_t*)rxBuffer, AUDIO_BUFFER_LEN) != HAL_OK)
+	if(HAL_I2SEx_TransmitReceive_DMA(&hi2s3, (uint16_t*)txBuffer, (uint16_t*)rxBuffer, AUDIO_BUFFER_LEN) != HAL_OK)
+	{
+		BlinkN(9);
 		Error_Handler();
+	}
 
 	/* USER CODE END 2 */
 
@@ -181,32 +184,32 @@ void SystemClock_Config(void)
 	* @param None
 	* @retval None
 	*/
-static void MX_I2S2_Init(void)
+static void MX_I2S3_Init(void)
 {
 
-	/* USER CODE BEGIN I2S2_Init 0 */
+	/* USER CODE BEGIN I2S3_Init 0 */
 
-	/* USER CODE END I2S2_Init 0 */
+	/* USER CODE END I2S3_Init 0 */
 
-	/* USER CODE BEGIN I2S2_Init 1 */
+	/* USER CODE BEGIN I2S3_Init 1 */
 
-	/* USER CODE END I2S2_Init 1 */
-	hi2s2.Instance = SPI2;
-	hi2s2.Init.Mode = I2S_MODE_MASTER_RX;
-	hi2s2.Init.Standard = I2S_STANDARD_PHILIPS;
-	hi2s2.Init.DataFormat = I2S_DATAFORMAT_16B;
-	hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_DISABLE;
-	hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_48K;
-	hi2s2.Init.CPOL = I2S_CPOL_LOW;
-	hi2s2.Init.ClockSource = I2S_CLOCK_PLL;
-	hi2s2.Init.FullDuplexMode = I2S_FULLDUPLEXMODE_ENABLE;
-	if (HAL_I2S_Init(&hi2s2) != HAL_OK)
+	/* USER CODE END I2S3_Init 1 */
+	hi2s3.Instance = SPI3;
+	hi2s3.Init.Mode = I2S_MODE_MASTER_TX;
+	hi2s3.Init.Standard = I2S_STANDARD_PHILIPS;
+	hi2s3.Init.DataFormat = I2S_DATAFORMAT_16B_EXTENDED;
+	hi2s3.Init.MCLKOutput = I2S_MCLKOUTPUT_ENABLE;
+	hi2s3.Init.AudioFreq = I2S_AUDIOFREQ_48K;
+	hi2s3.Init.CPOL = I2S_CPOL_LOW;
+	hi2s3.Init.ClockSource = I2S_CLOCK_PLL;
+	hi2s3.Init.FullDuplexMode = I2S_FULLDUPLEXMODE_ENABLE;
+	if (HAL_I2S_Init(&hi2s3) != HAL_OK)
 	{
-	  Error_Handler();
+		Error_Handler();
 	}
-	/* USER CODE BEGIN I2S2_Init 2 */
+	/* USER CODE BEGIN I2S3_Init 2 */
 
-	/* USER CODE END I2S2_Init 2 */
+	/* USER CODE END I2S3_Init 2 */
 
 }
 
@@ -220,12 +223,12 @@ static void MX_DMA_Init(void)
 	__HAL_RCC_DMA1_CLK_ENABLE();
 
 	/* DMA interrupt init */
-	/* DMA1_Stream3_IRQn interrupt configuration */
-	HAL_NVIC_SetPriority(DMA1_Stream3_IRQn, 0, 0);
-	HAL_NVIC_EnableIRQ(DMA1_Stream3_IRQn);
-	/* DMA1_Stream4_IRQn interrupt configuration */
-	HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 0, 0);
-	HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
+	/* DMA1_Stream0_IRQn interrupt configuration */
+	HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 0, 0);
+	HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
+	/* DMA1_Stream5_IRQn interrupt configuration */
+	HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 0, 0);
+	HAL_NVIC_EnableIRQ(DMA1_Stream5_IRQn);
 
 }
 
@@ -255,17 +258,7 @@ static void MX_GPIO_Init(void)
 	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
 	/* USER CODE BEGIN MX_GPIO_Init_2 */
-	GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_12|GPIO_PIN_14|GPIO_PIN_15;
-	GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-	GPIO_InitStruct.Pull = GPIO_NOPULL;
-	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-	GPIO_InitStruct.Alternate = GPIO_AF5_SPI2;
-	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-	// PB14 is I2S2ext (RX from ADC), needs different AF
-	GPIO_InitStruct.Pin = GPIO_PIN_14;
-	GPIO_InitStruct.Alternate = GPIO_AF6_I2S2ext;
-	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 	/* USER CODE END MX_GPIO_Init_2 */
 }
 
